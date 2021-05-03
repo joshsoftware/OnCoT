@@ -1,0 +1,41 @@
+version: '3.6'
+
+services:
+  db:
+    image: postgres:11.1
+    volumes:
+      - ./postgres-data:/var/lib/postgresql
+
+  oncot-api:
+    build:
+      context: './OnCoT-API'
+      dockerfile: $PWD/Dockerfile
+    volumes:
+      - $PWD/OnCoT-API:/var/app
+    command: bundle exec rails s -p 3001
+    ports:
+      - "3001:3001"
+    depends_on:
+      - db
+    stdin_open: true
+    tty: true
+    environment:
+      - EDITOR=vi
+
+
+  oncot-web:
+    build:
+      context: './OnCoT-Frontend'
+      dockerfile: $PWD/Dockerfile-React
+    volumes:
+      - $PWD/OnCoT-Frontend/:/app/
+    ports:
+      - '3000:3000'
+    environment:
+      NODE_ENV: development
+      CHOKIDAR_USEPOLLING: 'true'
+      REACT_APP_SERVER_URL: 'http://localhost:3001/'
+
+volumes:
+  postgres-data:
+    driver: local
