@@ -1,16 +1,19 @@
-FROM node:12.0.0-alpine
+FROM node:11.13.0
 
-WORKDIR '/app'
+# set working directory
+RUN mkdir /usr/src/app
+WORKDIR /usr/src/app
 
-# Install yarn and other dependencies via apk
-RUN apk update && apk add yarn python g++ make && rm -rf /var/cache/apk/*
+# add `/usr/src/app/node_modules/.bin` to $PATH
+ENV PATH /usr/src/app/node_modules/.bin:$PATH
 
-COPY package.json yarn.lock /app/
+# install and cache app dependencies
+COPY package.json /usr/src/app/package.json
+RUN npm install --silent
+RUN npm install react-scripts@1.1.1 -g --silent
 
-RUN npm install
-RUN yarn global add react-scripts
-RUN npm install --save react react-dom
-COPY . ./
+ADD . /usr/src/app
 
 
-CMD ["yarn", "start"]
+# start app
+CMD ["npm", "start"]
