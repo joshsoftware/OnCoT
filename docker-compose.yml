@@ -2,40 +2,91 @@ version: '3.6'
 
 services:
   db:
-    image: postgres:11.1
+    image: postgres:13.0
     volumes:
-      - ./postgres-data:/var/lib/postgresql
+      - ./postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: 'postgres'
+      POSTGRES_DB: 'postgres'
+      POSTGRES_PASSWORD: password
+      POSTGRES_HOST_AUTH_METHOD: trust
 
   oncot-api:
     build:
       context: './OnCoT-API'
       dockerfile: $PWD/Dockerfile
     volumes:
-      - $PWD/OnCoT-API:/var/app
-    command: bundle exec rails s -p 3001
+      - $PWD/OnCoT-API:/myapp
+    command: bundle exec rails s -p 3001 -b '0.0.0.0'
     ports:
       - "3001:3001"
     depends_on:
       - db
+      - ws
     stdin_open: true
     tty: true
     environment:
-      - EDITOR=vi
-
+      LAUNCHY_DRY_RUN: 'true'
+      BROWSER: /dev/null
+      CABLE_URL: ws://localhost:3100/cable
+      ANYCABLE_REDIS_URL: redis://redis:6379/0
+      ANYCABLE_RPC_HOST: anycable:50051
+      ANYCABLE_DEBUG: 1
 
   oncot-web:
     build:
       context: './OnCoT-Frontend'
       dockerfile: $PWD/Dockerfile-React
     volumes:
-      - $PWD/OnCoT-Frontend/:/app/
+      - './OnCoT-Frontend:/usr/src/app'
+      - '/usr/src/app/node_modules'
     ports:
-      - '3000:3000'
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+    depends_on:
+      - oncot-api
     environment:
       NODE_ENV: development
       CHOKIDAR_USEPOLLING: 'true'
-      REACT_APP_SERVER_URL: 'http://localhost:3001/'
+      REACT_APP_CABLE_URL: ws://localhost:3100/cable
+  redis:
+    image: redis:5.0.7
+    command: redis-server
+    volumes:
+      - redis-data:/var/lib/redis/data
+
+  ws:
+    image: anycable/anycable-go:1.0
+    environment:
+      ANYCABLE_HOST: "0.0.0.0"
+      ANYCABLE_REDIS_URL: redis://redis:6379/0
+      ANYCABLE_RPC_HOST: anycable:50051
+      ANYCABLE_DEBUG: 1
+    ports:
+      - "3100:8080"
+    depends_on:
+      - redis
+
+  anycable:
+    build:
+      context: './OnCoT-API'
+      dockerfile: $PWD/Dockerfile
+    volumes:
+      - $PWD/OnCoT-API:/myapp
+    command: bundle exec anycable --log-file=log/anycable.log --log-level debug
+    environment:
+      LAUNCHY_DRY_RUN: 'true'
+      BROWSER: /dev/null
+      ANYCABLE_REDIS_URL: redis://redis:6379/0
+      ANYCABLE_RPC_HOST: 0.0.0.0:50051
+      ANYCABLE_DEBUG: 1
+    depends_on:
+      - db
+      - ws
 
 volumes:
   postgres-data:
-    driver: local
+  redis-data:
